@@ -8,7 +8,3 @@ output "jar_bucket_name" {
   value       = aws_s3_bucket.jar_bucket.bucket
 }
 
-output "ec2_public_ips" {
-  description = "List of public IPs of the EC2 instances"
-  value       = aws_instance.devops_ec2[*].public_ip
-}

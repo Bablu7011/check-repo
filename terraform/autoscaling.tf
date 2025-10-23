@@ -65,15 +65,16 @@ resource "aws_autoscaling_group" "devops_asg" {
     create_before_destroy = true
   }
 
+  # --- THIS IS THE CORRECTED PART ---
   # This tag will be added to every instance the ASG creates
-  tags = [
-    {
-      key                 = "Name"
-      value               = "${var.stage}-asg-instance"
-      propagate_at_launch = true
-    }
-  ]
+  tag {
+    key                 = "Name"
+    value               = "${var.stage}-asg-instance"
+    propagate_at_launch = true
+  }
 }
+
+
 
 # --------------------------
 # Auto Scaling Policy (NEW)
