@@ -92,7 +92,7 @@ echo "OK" > /app/actuator/health
 
 echo "Starting placeholder web server with Python..."
 cd /app/  # Make sure we are in the /app directory
-nohup python3 -m http.server 80 > /app/placeholder.log 2>&1 &
+nohup python3 -m http.server 80 --directory /app > /app/placeholder.log 2>&1 &
 echo "Placeholder Python web server is running in the background."
 
 
