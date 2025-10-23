@@ -35,6 +35,7 @@ set -e
 JAR_BUCKET="${JAR_BUCKET}"
 EC2_LOGS_BUCKET="${EC2_LOGS_BUCKET}"
 APP_DIR="/app"
+ARTIFACT_DIR="$${APP_DIR}/artifacts"
 CURRENT_JAR_MD5=""
 
 # Get the unique instance ID from instance metadata
@@ -42,10 +43,14 @@ INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 
 echo "Polling service started for bucket: s3://$${JAR_BUCKET}"
 
+# Ensure artifacts directory exists
+mkdir -p $${ARTIFACT_DIR}
+
 while true; do
   # --- APP DEPLOYMENT LOGIC ---
-  aws s3 sync s3://$${JAR_BUCKET} $${APP_DIR} --delete
-  JAR_FILE=$(find $${APP_DIR} -maxdepth 1 -name "*.jar" | head -n 1)
+  echo "Syncing JARs from S3..."
+  aws s3 sync s3://$${JAR_BUCKET} $${ARTIFACT_DIR} --delete
+  JAR_FILE=$(find $${ARTIFACT_DIR} -maxdepth 1 -name "*.jar" | head -n 1)
 
   if [ -f "$${JAR_FILE}" ]; then
     NEW_JAR_MD5=$(md5sum "$${JAR_FILE}" | awk '{ print $1 }')
@@ -61,17 +66,20 @@ while true; do
         sleep 5
       fi
 
+      echo "Starting new application from $${JAR_FILE}..."
       nohup java -jar "$${JAR_FILE}" --server.port=80 > /app/app.log 2>&1 &
       echo "Started new application from $${JAR_FILE}."
     fi
+  else
+    echo "No JAR file found in S3 bucket."
   fi
 
   # --- LOG UPLOAD LOGIC ---
   if [ -f "/app/app.log" ]; then
-    aws s3 cp /app/app.log s3://$${EC2_LOGS_BUCKET}/$${INSTANCE_ID}/app.log
+    aws s3 cp /app/app.log s3://$${EC2_LOGS_BUCKET}/$${INSTANCE_ID}/app.log || true
   fi
   if [ -f "/app/polling_service.log" ]; then
-    aws s3 cp /app/polling_service.log s3://$${EC2_LOGS_BUCKET}/$${INSTANCE_ID}/polling_service.log
+    aws s3 cp /app/polling_service.log s3://$${EC2_LOGS_BUCKET}/$${INSTANCE_ID}/polling_service.log || true
   fi
   
   sleep 300
@@ -94,12 +102,6 @@ echo "Starting placeholder web server with Python..."
 cd /app/  # Make sure we are in the /app directory
 nohup python3 -m http.server 80 --directory /app > /app/placeholder.log 2>&1 &
 echo "Placeholder Python web server is running in the background."
-
-
-
-
-
-
 
 # --------------------------
 # Run the polling script
