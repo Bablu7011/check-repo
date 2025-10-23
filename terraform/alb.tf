@@ -26,14 +26,14 @@ resource "aws_lb_target_group" "main_tg" {
   vpc_id   = aws_vpc.devops_vpc.id
 
   health_check {
-    path                = "/"
+    path                = "/health"
     protocol            = "HTTP"
     matcher             = "200"
     # UPDATED: Give the instance more time to start
     interval            = 60
     timeout             = 30
     healthy_threshold   = 2
-    unhealthy_threshold = 10 # Allow 5 failures before marking as unhealthy
+    unhealthy_threshold = 10 # Allow 10 failures before marking as unhealthy
   }
 }
 

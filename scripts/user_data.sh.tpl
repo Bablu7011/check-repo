@@ -82,11 +82,12 @@ echo "Finished creating /app/poll_s3.sh."
 # --------------------------
 # Start Placeholder Web Server
 # --------------------------
-echo "Creating a placeholder index.html for health checks..."
-# ADD THIS LINE to create the file the health check looks for
+echo "Creating placeholder files for health checks..."
 echo "<h1>Health Check OK</h1>" > /app/index.html
+echo "OK" > /app/health  # <-- THIS IS THE NEW LINE YOU SUGGESTED
 
 echo "Starting placeholder web server with Python..."
+cd /app/  # Make sure we are in the /app directory
 nohup python3 -m http.server 80 > /app/placeholder.log 2>&1 &
 echo "Placeholder Python web server is running in the background."
 
