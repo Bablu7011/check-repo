@@ -5,9 +5,9 @@ variable "region" {
 }
 
 variable "stage" {
-  description = "Deployment stage (e.g., Dev)"
+  description = "Deployment stage (e.g., Test/Dev/Prod)"
   type        = string
-  default     = "Dev"
+  default     = "dev"
 }
 
 

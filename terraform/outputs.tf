@@ -8,3 +8,9 @@ output "jar_bucket_name" {
   value       = aws_s3_bucket.jar_bucket.bucket
 }
 
+# --- ADD THIS NEW OUTPUT ---
+output "dashboard_url" {
+  description = "The URL of the 100% Terraform-managed ASG Dashboard"
+  value       = "http://${aws_s3_bucket_website_configuration.dashboard_website.website_endpoint}"
+}
+

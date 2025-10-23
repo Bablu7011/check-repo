@@ -1,58 +1,144 @@
-# --------------------------
-# CloudWatch Dashboard
-# --------------------------
-resource "aws_cloudwatch_dashboard" "devops_dashboard" {
-  dashboard_name = "${var.stage}-Dashboard"
+###############################################################
+# 1. Create a unique S3 bucket for our dashboard website
+###############################################################
+resource "random_id" "bucket_suffix" {
+  byte_length = 8
+}
 
-  # This is the JSON body that defines the widgets
-  dashboard_body = jsonencode({
-    "widgets" : [
-      # WIDGET 1: Auto Scaling Group - Instance Count
+resource "aws_s3_bucket" "dashboard_bucket" {
+  # We use a random suffix to make the bucket name unique
+  bucket = "${var.stage}-asg-dashboard-${random_id.bucket_suffix.hex}"
+
+  tags = {
+    Name = "${var.stage}-dashboard-bucket"
+  }
+}
+
+###############################################################
+# 2. Allow the bucket to have a public policy
+# (fix for AccessDenied: BlockPublicPolicy issue)
+###############################################################
+resource "aws_s3_bucket_public_access_block" "dashboard_public_access" {
+  bucket = aws_s3_bucket.dashboard_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+###############################################################
+# 3. Configure the bucket as a public website
+###############################################################
+resource "aws_s3_bucket_website_configuration" "dashboard_website" {
+  bucket = aws_s3_bucket.dashboard_bucket.id
+
+  index_document {
+    suffix = "index.html"
+  }
+}
+
+###############################################################
+# 4. Add a policy to make the bucket readable
+###############################################################
+resource "aws_s3_bucket_policy" "dashboard_policy" {
+  bucket = aws_s3_bucket.dashboard_bucket.id
+  depends_on = [aws_s3_bucket_public_access_block.dashboard_public_access]
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
       {
-        "type" : "metric",
-        "x" : 0, # Position on the dashboard (X=0, Y=0)
-        "y" : 0,
-        "width" : 12,
-        "height" : 6,
-        "properties" : {
-          "metrics" : [
-            [
-              "AWS/AutoScaling",
-              "GroupInServiceInstances",
-              "AutoScalingGroupName",
-              aws_autoscaling_group.devops_asg.name
-            ]
-          ],
-          "period" : 60, # Changed to 1-minute intervals for faster updates
-          "stat" : "Average",
-          "region" : var.region,
-          "title" : "Number of Running Instances (ASG)"
-        }
-      },
-      # WIDGET 2: ALB - Request Count Per Target (NEW)
+        Sid       = "PublicReadGetObject",
+        Effect    = "Allow",
+        Principal = "*",
+        Action    = "s3:GetObject",
+        Resource  = "${aws_s3_bucket.dashboard_bucket.arn}/*"
+      }
+    ]
+  })
+}
+
+###############################################################
+# 5. Create the Cognito Identity Pool
+###############################################################
+resource "aws_cognito_identity_pool" "dashboard_pool" {
+  identity_pool_name               = "${var.stage}-dashboard-pool"
+  allow_unauthenticated_identities = true # Allow anonymous users
+}
+
+###############################################################
+# 6. Create the IAM Role for unauthenticated users
+###############################################################
+resource "aws_iam_role" "dashboard_cognito_role" {
+  name = "${var.stage}-dashboard-cognito-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
       {
-        "type" : "metric",
-        "x" : 0, # Position on the dashboard (X=0, Y=6)
-        "y" : 6,
-        "width" : 12,
-        "height" : 6,
-        "properties" : {
-          "metrics" : [
-            [
-              "AWS/ApplicationELB",
-              "RequestCountPerTarget",
-              "LoadBalancer",
-              aws_lb.main_alb.arn_suffix,
-              "TargetGroup",
-              aws_lb_target_group.main_tg.arn_suffix
-            ]
-          ],
-          "period" : 60, # 1-minute intervals
-          "stat" : "Sum",
-          "region" : var.region,
-          "title" : "Total Requests Per Target (ALB)"
+        Effect = "Allow",
+        Principal = {
+          "Federated" : "cognito-identity.amazonaws.com"
+        },
+        Action = "sts:AssumeRoleWithWebIdentity",
+        Condition = {
+          "StringEquals" : {
+            "cognito-identity.amazonaws.com:aud" : aws_cognito_identity_pool.dashboard_pool.id
+          },
+          "ForAnyValue:StringLike" : {
+            "cognito-identity.amazonaws.com:amr" : "unauthenticated"
+          }
         }
       }
     ]
   })
+}
+
+###############################################################
+# 7. Attach our read-only policy to the role
+###############################################################
+resource "aws_iam_role_policy" "dashboard_cognito_policy" {
+  name = "${var.stage}-dashboard-cognito-policy"
+  role = aws_iam_role.dashboard_cognito_role.id
+  # Make sure this filename matches your file in the /policy directory
+  policy = templatefile("${path.module}/../policy/dashboard_read_logs_policy.json", {})
+}
+
+###############################################################
+# 8. Attach the Role to the Identity Pool
+###############################################################
+resource "aws_cognito_identity_pool_roles_attachment" "dashboard_attachment" {
+  identity_pool_id = aws_cognito_identity_pool.dashboard_pool.id
+  roles = {
+    "unauthenticated" = aws_iam_role.dashboard_cognito_role.arn
+  }
+}
+
+###############################################################
+# 9. Upload the HTML file (replace placeholders safely)
+###############################################################
+resource "aws_s3_object" "dashboard_html" {
+  bucket       = aws_s3_bucket.dashboard_bucket.id
+  key          = "index.html"
+  content_type = "text/html"
+
+  # Read the file as plain text, then replace placeholders manually.
+  content = replace(
+    replace(
+      replace(
+        file("${path.module}/index.html"),
+        "__COGNITO_POOL_ID__", aws_cognito_identity_pool.dashboard_pool.id
+      ),
+      "__AWS_REGION__", var.region
+    ),
+    "__ASG_NAME__", aws_autoscaling_group.devops_asg.name
+  )
+
+  # Ensure file re-uploads when it changes
+  etag = filemd5("${path.module}/index.html")
+
+  depends_on = [
+    aws_s3_bucket_policy.dashboard_policy
+  ]
 }
