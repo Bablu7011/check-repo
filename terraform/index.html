@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ASG Activity Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1648.0/aws-sdk.min.js"></script>
+
+  <!-- ✅ Official AWS SDK (Fixed version, always available) -->
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1491.0.min.js"></script>
+
   <style>
     /* Loader animation */
     .loader {
@@ -23,12 +26,8 @@
       animation: fadeIn 0.5s ease-in-out;
     }
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     /* Full-page loading overlay */
@@ -45,10 +44,17 @@
       font-size: 1.25rem;
       flex-direction: column;
     }
+
+    /* Smooth transition for button states */
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
 <body class="h-full text-gray-200">
+
   <!-- Overlay shown while data is loading -->
   <div id="loading-overlay" class="flex">
     <div class="loader border-4 border-t-4 border-gray-200 rounded-full h-12 w-12 mb-4"></div>
@@ -92,18 +98,10 @@
         <table class="min-w-full divide-y divide-gray-700">
           <thead class="bg-gray-700">
             <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                Time
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                Description
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                Cause
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                Status
-              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Time</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Description</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cause</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
             </tr>
           </thead>
           <tbody
@@ -118,6 +116,8 @@
           </tbody>
         </table>
       </div>
+      <!-- Last updated text -->
+      <p id="last-updated" class="text-sm text-gray-400 mt-4 text-right hidden"></p>
     </div>
   </div>
 
@@ -127,7 +127,7 @@
     const AWS_REGION = "__AWS_REGION__";
     const ASG_NAME = "__ASG_NAME__";
 
-    // Set ASG info
+    // Display ASG info
     document.getElementById("asg-name").textContent = ASG_NAME;
     document.getElementById("asg-region").textContent = AWS_REGION;
 
@@ -143,14 +143,17 @@
     const loader = document.getElementById("loader");
     const overlay = document.getElementById("loading-overlay");
     const tableBody = document.getElementById("activity-table-body");
+    const lastUpdated = document.getElementById("last-updated");
 
     async function fetchActivity() {
+      // --- Show loading feedback immediately ---
+      overlay.style.display = "flex";
+      loader.classList.remove("hidden");
+      buttonText.textContent = "Refreshing...";
+      refreshButton.disabled = true;
+
       try {
-        // --- Show loading feedback ---
-        overlay.style.display = "flex";
-        buttonText.textContent = "Refreshing...";
-        loader.classList.remove("hidden");
-        refreshButton.disabled = true;
+        console.log("🔁 Fetching ASG data...");
 
         // Refresh Cognito credentials
         await new Promise((resolve, reject) => {
@@ -165,21 +168,20 @@
           })
           .promise();
 
-        // --- Render data ---
+        console.log("✅ Data received:", data);
+
+        // Clear old rows
         tableBody.innerHTML = "";
+
         if (data.Activities && data.Activities.length > 0) {
           data.Activities.forEach((activity) => {
             const row = `
               <tr class="hover:bg-gray-700 transition fade-in">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${new Date(
-                  activity.StartTime
-                ).toLocaleString()}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${new Date(activity.StartTime).toLocaleString()}</td>
                 <td class="px-6 py-4 text-sm text-gray-300">${activity.Description}</td>
                 <td class="px-6 py-4 text-sm text-gray-300">${activity.Cause}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${
-                  activity.StatusCode === "Successful"
-                    ? "text-green-400"
-                    : "text-yellow-400"
+                  activity.StatusCode === "Successful" ? "text-green-400" : "text-yellow-400"
                 }">${activity.StatusCode}</td>
               </tr>`;
             tableBody.innerHTML += row;
@@ -188,19 +190,27 @@
           tableBody.innerHTML =
             '<tr><td colspan="4" class="px-6 py-4 text-sm text-gray-400 text-center">No recent scaling activity found.</td></tr>';
         }
+
+        // Update last updated timestamp
+        const now = new Date().toLocaleString();
+        lastUpdated.textContent = `Last updated: ${now}`;
+        lastUpdated.classList.remove("hidden");
+
       } catch (err) {
         console.error("❌ Error fetching ASG activity:", err);
         tableBody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-sm text-red-400 text-center">Error: ${err.message}</td></tr>`;
       } finally {
-        // --- Hide loading ---
-        overlay.style.display = "none";
-        buttonText.textContent = "🔄 Refresh Data";
-        loader.classList.add("hidden");
-        refreshButton.disabled = false;
+        // Keep overlay visible briefly for user feedback
+        setTimeout(() => {
+          overlay.style.display = "none";
+          loader.classList.add("hidden");
+          buttonText.textContent = "🔄 Refresh Data";
+          refreshButton.disabled = false;
+        }, 1000);
       }
     }
 
-    // User clicks refresh
+    // Attach button event
     refreshButton.addEventListener("click", fetchActivity);
   </script>
 </body>
