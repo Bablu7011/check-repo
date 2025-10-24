@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASG Activity Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 1. Load AWS SDK v2 -->
+    <!-- AWS SDK v2 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.1648.0/aws-sdk.min.js"></script>
     <style>
         .loader { border-top-color: #3498db; animation: spin 1s linear infinite; }
@@ -16,8 +16,7 @@
     <div class="container mx-auto p-4 md:p-8 max-w-5xl">
         <h1 class="text-3xl font-bold mb-6 text-white">ASG Activity Dashboard (Live)</h1>
         
-        <!-- Data will be populated by the script -->
-        <div class_id="asg-info" class="mb-6">
+        <div class="mb-6">
             <p class="text-lg">Fetching activity for: <strong id="asg-name" class="text-blue-400">Loading...</strong></p>
             <p class="text-sm text-gray-400">Region: <span id="asg-region">Loading...</span></p>
         </div>
@@ -35,10 +34,10 @@
                 <table class="min-w-full divide-y divide-gray-700">
                     <thead class="bg-gray-700">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Time</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Description</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cause</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cause</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
                     <tbody id="activity-table-body" class="bg-gray-800 divide-y divide-gray-700">
@@ -52,17 +51,16 @@
     </div>
 
     <script>
-        // 2. These values will be replaced by Terraform
+        // --- Variables replaced by Terraform ---
         const COGNITO_IDENTITY_POOL_ID = "__COGNITO_POOL_ID__";
         const AWS_REGION = "__AWS_REGION__";
         const ASG_NAME = "__ASG_NAME__";
 
-        // 3. Update the UI with our variables
         document.getElementById('asg-name').textContent = ASG_NAME;
         document.getElementById('asg-region').textContent = AWS_REGION;
 
-        // 4. Configure AWS SDK to use Cognito for credentials
-        AWS.config.region = AWS_REGION;
+        // --- AWS Configuration ---
+        AWS.config.update({ region: AWS_REGION });
         AWS.config.credentials = new AWS.CognitoIdentityCredentials({
             IdentityPoolId: COGNITO_IDENTITY_POOL_ID
         });
@@ -73,38 +71,37 @@
         const loader = document.getElementById('loader');
         const tableBody = document.getElementById('activity-table-body');
 
-        // 5. Function to fetch and display data
         async function fetchActivity() {
-            // Show loading state
             buttonText.classList.add('hidden');
             loader.classList.remove('hidden');
             refreshButton.disabled = true;
             tableBody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-sm text-gray-400 text-center">Fetching data...</td></tr>';
 
             try {
-                // 6. Get credentials from Cognito
-                await AWS.config.credentials.getPromise();
+                // Refresh credentials every time before calling API
+                await new Promise((resolve, reject) => {
+                    AWS.config.credentials.refresh(err => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
+                });
 
                 const params = {
                     AutoScalingGroupName: ASG_NAME,
-                    MaxRecords: 20 // Get the last 20 events
+                    MaxRecords: 20
                 };
 
                 const data = await autoscaling.describeScalingActivities(params).promise();
-                
+
                 if (data.Activities && data.Activities.length > 0) {
-                    tableBody.innerHTML = ''; // Clear the table
+                    tableBody.innerHTML = '';
                     data.Activities.forEach(activity => {
-                        // --- THIS IS THE CLEAN JAVASCRIPT ---
-                        // No '$$' escapes are needed anywhere.
                         const row = `
                             <tr class="hover:bg-gray-700">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${new Date(activity.StartTime).toLocaleString()}</td>
                                 <td class="px-6 py-4 text-sm text-gray-300">${activity.Description}</td>
                                 <td class="px-6 py-4 text-sm text-gray-300">${activity.Cause}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${activity.StatusCode === 'Successful' ? 'text-green-400' : 'text-yellow-400'}">
-                                    ${activity.StatusCode}
-                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${activity.StatusCode === 'Successful' ? 'text-green-400' : 'text-yellow-400'}">${activity.StatusCode}</td>
                             </tr>
                         `;
                         tableBody.innerHTML += row;
@@ -112,22 +109,18 @@
                 } else {
                     tableBody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-sm text-gray-400 text-center">No scaling activities found.</td></tr>';
                 }
-
             } catch (err) {
-                console.error(err);
-                tableBody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-sm text-red-400 text-center">Error: ${err.message}</td></tr>`;
+                console.error("❌ Error fetching ASG activity:", err);
+                tableBody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-sm text-red-400 text-center">Error fetching data: ${err.message}</td></tr>`;
             } finally {
-                // Hide loading state
                 buttonText.classList.remove('hidden');
                 loader.classList.add('hidden');
                 refreshButton.disabled = false;
             }
         }
 
-        // 7. Add event listener and load data on page start
         refreshButton.addEventListener('click', fetchActivity);
         fetchActivity();
     </script>
 </body>
 </html>
-
