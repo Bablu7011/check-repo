@@ -26,7 +26,7 @@ resource "aws_s3_bucket_public_access_block" "dashboard_public_access" {
 }
 
 ###############################################################
-# 3. Configure the bucket as a public website
+# 3. Configure the bucket as a static website
 ###############################################################
 resource "aws_s3_bucket_website_configuration" "dashboard_website" {
   bucket = aws_s3_bucket.dashboard_bucket.id
@@ -37,10 +37,10 @@ resource "aws_s3_bucket_website_configuration" "dashboard_website" {
 }
 
 ###############################################################
-# 4. Add a policy to make the bucket readable
+# 4. Add a public read-only policy for S3 objects
 ###############################################################
 resource "aws_s3_bucket_policy" "dashboard_policy" {
-  bucket = aws_s3_bucket.dashboard_bucket.id
+  bucket     = aws_s3_bucket.dashboard_bucket.id
   depends_on = [aws_s3_bucket_public_access_block.dashboard_public_access]
 
   policy = jsonencode({
@@ -58,7 +58,7 @@ resource "aws_s3_bucket_policy" "dashboard_policy" {
 }
 
 ###############################################################
-# 5. Create the Cognito Identity Pool
+# 5. Create Cognito Identity Pool (for guest users)
 ###############################################################
 resource "aws_cognito_identity_pool" "dashboard_pool" {
   identity_pool_name               = "${var.stage}-dashboard-pool"
@@ -66,7 +66,7 @@ resource "aws_cognito_identity_pool" "dashboard_pool" {
 }
 
 ###############################################################
-# 6. Create the IAM Role for unauthenticated users
+# 6. Create IAM Role for unauthenticated users
 ###############################################################
 resource "aws_iam_role" "dashboard_cognito_role" {
   name = "${var.stage}-dashboard-cognito-role"
@@ -94,34 +94,39 @@ resource "aws_iam_role" "dashboard_cognito_role" {
 }
 
 ###############################################################
-# 7. Attach read-only policy (from file) to the Cognito Role
+# 7. Attach policy from the /policy folder (read-only ASG + CW)
 ###############################################################
 resource "aws_iam_role_policy" "dashboard_cognito_policy" {
   name = "${var.stage}-dashboard-cognito-policy"
   role = aws_iam_role.dashboard_cognito_role.id
 
-  # Attach from your policy folder (HR requirement ✅)
+  # Reads JSON directly from your policy folder
   policy = file("${path.module}/../policy/dashboard_read_logs_policy.json")
 }
 
 ###############################################################
-# 8. Attach the Role to the Identity Pool
+# 8. Attach this IAM Role to the Cognito Identity Pool
 ###############################################################
 resource "aws_cognito_identity_pool_roles_attachment" "dashboard_attachment" {
   identity_pool_id = aws_cognito_identity_pool.dashboard_pool.id
   roles = {
     "unauthenticated" = aws_iam_role.dashboard_cognito_role.arn
   }
+
+  depends_on = [
+    aws_iam_role_policy.dashboard_cognito_policy
+  ]
 }
 
 ###############################################################
-# 9. Upload the Dashboard HTML file
+# 9. Upload the HTML file (with placeholder replacement)
 ###############################################################
 resource "aws_s3_object" "dashboard_html" {
   bucket       = aws_s3_bucket.dashboard_bucket.id
   key          = "index.html"
   content_type = "text/html"
 
+  # Replace placeholders with Terraform variables
   content = replace(
     replace(
       replace(
@@ -133,8 +138,8 @@ resource "aws_s3_object" "dashboard_html" {
     "__ASG_NAME__", aws_autoscaling_group.devops_asg.name
   )
 
-  # Always re-upload new HTML versions
-  etag = md5(format("%s-%s", file("${path.module}/index.html"), timestamp()))
+  # Re-upload file on changes
+    etag = md5("${file("${path.module}/index.html")}-${timestamp()}")
 
 
   depends_on = [

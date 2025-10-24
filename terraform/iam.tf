@@ -1,6 +1,6 @@
 # --- Policy for reading from the JAR S3 Bucket ---
 resource "aws_iam_policy" "read_jar_bucket_policy" {
-  name   = "${var.stage}-read-jar-bucket-policy"
+  name = "${var.stage}-read-jar-bucket-policy"
   policy = templatefile("${path.module}/../policy/ec2_read_jar_bucket_policy.json", {
     jar_bucket_name = var.jar_bucket_name
   })
@@ -8,7 +8,7 @@ resource "aws_iam_policy" "read_jar_bucket_policy" {
 
 # --- Policy for writing to the EC2 Logs S3 Bucket ---
 resource "aws_iam_policy" "write_logs_bucket_policy" {
-  name   = "${var.stage}-write-logs-bucket-policy"
+  name = "${var.stage}-write-logs-bucket-policy"
   policy = templatefile("${path.module}/../policy/ec2_write_logs_bucket_policy.json", {
     ec2_logs_bucket_name = var.ec2_logs_bucket_name
   })
@@ -18,11 +18,11 @@ resource "aws_iam_policy" "write_logs_bucket_policy" {
 resource "aws_iam_role" "ec2_s3_access_role" {
   name = "${var.stage}-ec2-s3-access-role"
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [
       {
-        Action    = "sts:AssumeRole"
-        Effect    = "Allow"
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
         Principal = {
           Service = "ec2.amazonaws.com"
         }
@@ -54,7 +54,7 @@ data "aws_caller_identity" "current" {}
 
 # --- Policy for the Auditor to read all S3 Buckets ---
 resource "aws_iam_policy" "auditor_read_buckets_policy" {
-  name   = "${var.stage}-auditor-read-buckets-policy"
+  name = "${var.stage}-auditor-read-buckets-policy"
   policy = templatefile("${path.module}/../policy/auditor_read_buckets_policy.json", {
     jar_bucket_name      = var.jar_bucket_name
     ec2_logs_bucket_name = var.ec2_logs_bucket_name
@@ -68,11 +68,11 @@ resource "aws_iam_role" "s3_auditor_role" {
 
   # This policy trusts your AWS account, allowing you to assume the role
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17"
+    Version = "2012-10-17"
     Statement = [
       {
-        Action    = "sts:AssumeRole"
-        Effect    = "Allow"
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
         }

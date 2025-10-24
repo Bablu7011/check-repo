@@ -26,9 +26,9 @@ resource "aws_lb_target_group" "main_tg" {
   vpc_id   = aws_vpc.devops_vpc.id
 
   health_check {
-    path                = "/actuator/health"
-    protocol            = "HTTP"
-    matcher             = "200"
+    path     = "/actuator/health"
+    protocol = "HTTP"
+    matcher  = "200"
     # UPDATED: Give the instance more time to start
     interval            = 60
     timeout             = 30

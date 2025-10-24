@@ -18,8 +18,8 @@ resource "aws_subnet" "devops_subnet" {
   vpc_id                  = aws_vpc.devops_vpc.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
- 
- availability_zone       = "${var.region}a"
+
+  availability_zone = "${var.region}a"
   tags = {
     Name = "${var.stage}-subnet"
   }
@@ -38,8 +38,8 @@ resource "aws_subnet" "devops_subnet_2" {
 resource "aws_internet_gateway" "devops_igw" {
   vpc_id = aws_vpc.devops_vpc.id
   tags = {
- 
-   Name = "${var.stage}-igw"
+
+    Name = "${var.stage}-igw"
   }
 }
 
@@ -86,10 +86,10 @@ resource "aws_security_group" "devops_sg" {
   }
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-  
-  cidr_blocks = ["0.0.0.0/0"]
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }

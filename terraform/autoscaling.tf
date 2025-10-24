@@ -85,7 +85,7 @@ resource "aws_autoscaling_policy" "devops_asg_policy" {
   policy_type            = "TargetTrackingScaling"
 
   # ✅ Estimated warmup time (top-level, not inside nested block)
-  estimated_instance_warmup = 300  # 5 minutes instead of AWS default 15+
+  estimated_instance_warmup = 300 # 5 minutes instead of AWS default 15+
 
   target_tracking_configuration {
     # Target number of requests per target
@@ -94,7 +94,7 @@ resource "aws_autoscaling_policy" "devops_asg_policy" {
     # Tell AWS which metric to monitor
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
-      resource_label = "${aws_lb.main_alb.arn_suffix}/${aws_lb_target_group.main_tg.arn_suffix}"
+      resource_label         = "${aws_lb.main_alb.arn_suffix}/${aws_lb_target_group.main_tg.arn_suffix}"
     }
   }
 }
