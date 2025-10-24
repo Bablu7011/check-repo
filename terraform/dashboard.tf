@@ -6,7 +6,6 @@ resource "random_id" "bucket_suffix" {
 }
 
 resource "aws_s3_bucket" "dashboard_bucket" {
-  # We use a random suffix to make the bucket name unique
   bucket = "${var.stage}-asg-dashboard-${random_id.bucket_suffix.hex}"
 
   tags = {
@@ -16,7 +15,6 @@ resource "aws_s3_bucket" "dashboard_bucket" {
 
 ###############################################################
 # 2. Allow the bucket to have a public policy
-# (fix for AccessDenied: BlockPublicPolicy issue)
 ###############################################################
 resource "aws_s3_bucket_public_access_block" "dashboard_public_access" {
   bucket = aws_s3_bucket.dashboard_bucket.id
@@ -64,7 +62,7 @@ resource "aws_s3_bucket_policy" "dashboard_policy" {
 ###############################################################
 resource "aws_cognito_identity_pool" "dashboard_pool" {
   identity_pool_name               = "${var.stage}-dashboard-pool"
-  allow_unauthenticated_identities = true # Allow anonymous users
+  allow_unauthenticated_identities = true
 }
 
 ###############################################################
@@ -79,15 +77,15 @@ resource "aws_iam_role" "dashboard_cognito_role" {
       {
         Effect = "Allow",
         Principal = {
-          "Federated" : "cognito-identity.amazonaws.com"
+          Federated = "cognito-identity.amazonaws.com"
         },
         Action = "sts:AssumeRoleWithWebIdentity",
         Condition = {
-          "StringEquals" : {
-            "cognito-identity.amazonaws.com:aud" : aws_cognito_identity_pool.dashboard_pool.id
+          StringEquals = {
+            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.dashboard_pool.id
           },
-          "ForAnyValue:StringLike" : {
-            "cognito-identity.amazonaws.com:amr" : "unauthenticated"
+          "ForAnyValue:StringLike" = {
+            "cognito-identity.amazonaws.com:amr" = "unauthenticated"
           }
         }
       }
@@ -96,13 +94,14 @@ resource "aws_iam_role" "dashboard_cognito_role" {
 }
 
 ###############################################################
-# 7. Attach our read-only policy to the role
+# 7. Attach read-only policy (from file) to the Cognito Role
 ###############################################################
 resource "aws_iam_role_policy" "dashboard_cognito_policy" {
   name = "${var.stage}-dashboard-cognito-policy"
   role = aws_iam_role.dashboard_cognito_role.id
-  # Make sure this filename matches your file in the /policy directory
-  policy = templatefile("${path.module}/../policy/dashboard_read_logs_policy.json", {})
+
+  # Attach from your policy folder (HR requirement ✅)
+  policy = file("${path.module}/../policy/dashboard_read_logs_policy.json")
 }
 
 ###############################################################
@@ -116,14 +115,13 @@ resource "aws_cognito_identity_pool_roles_attachment" "dashboard_attachment" {
 }
 
 ###############################################################
-# 9. Upload the HTML file (replace placeholders safely)
+# 9. Upload the Dashboard HTML file
 ###############################################################
 resource "aws_s3_object" "dashboard_html" {
   bucket       = aws_s3_bucket.dashboard_bucket.id
   key          = "index.html"
   content_type = "text/html"
 
-  # Read the file as plain text, then replace placeholders manually.
   content = replace(
     replace(
       replace(
@@ -135,10 +133,13 @@ resource "aws_s3_object" "dashboard_html" {
     "__ASG_NAME__", aws_autoscaling_group.devops_asg.name
   )
 
-  # Ensure file re-uploads when it changes
-  etag = filemd5("${path.module}/index.html")
+  # Always re-upload new HTML versions
+  etag = md5(format("%s-%s", file("${path.module}/index.html"), timestamp()))
+
 
   depends_on = [
     aws_s3_bucket_policy.dashboard_policy
   ]
 }
+
+

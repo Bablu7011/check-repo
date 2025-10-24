@@ -77,22 +77,23 @@ resource "aws_autoscaling_group" "devops_asg" {
 
 
 # --------------------------
-# Auto Scaling Policy (NEW)
+# Auto Scaling Policy (FINAL FIXED)
 # --------------------------
 resource "aws_autoscaling_policy" "devops_asg_policy" {
   name                   = "${var.stage}-alb-requests-policy"
   autoscaling_group_name = aws_autoscaling_group.devops_asg.name
   policy_type            = "TargetTrackingScaling"
 
+  # ✅ Estimated warmup time (top-level, not inside nested block)
+  estimated_instance_warmup = 300  # 5 minutes instead of AWS default 15+
+
   target_tracking_configuration {
-    # This is the target value we set
+    # Target number of requests per target
     target_value = 100 # (Approx 20 requests/sec over 5 min)
 
-    # This tells the policy what to measure
+    # Tell AWS which metric to monitor
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
-      
-      # This points to our specific ALB Target Group
       resource_label = "${aws_lb.main_alb.arn_suffix}/${aws_lb_target_group.main_tg.arn_suffix}"
     }
   }

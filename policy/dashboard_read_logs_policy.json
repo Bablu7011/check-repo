@@ -6,10 +6,11 @@
       "Action": [
         "autoscaling:DescribeAutoScalingGroups",
         "autoscaling:DescribeScalingActivities",
-        "cloudwatch:DescribeAlarms",
+        "autoscaling:DescribePolicies",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
-        "cloudwatch:ListMetrics"
+        "cloudwatch:ListMetrics",
+        "cloudwatch:DescribeAlarms"
       ],
       "Resource": "*"
     }
