@@ -3,16 +3,9 @@
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "autoscaling:DescribeAutoScalingGroups",
-        "autoscaling:DescribeScalingActivities",
-        "autoscaling:DescribePolicies",
-        "cloudwatch:GetMetricData",
-        "cloudwatch:GetMetricStatistics",
-        "cloudwatch:ListMetrics",
-        "cloudwatch:DescribeAlarms"
-      ],
+      "Action": "autoscaling:DescribeScalingActivities",
       "Resource": "*"
     }
   ]
 }
+
