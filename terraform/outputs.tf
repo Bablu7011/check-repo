@@ -15,3 +15,12 @@ output "dashboard_website_url" {
   value = aws_s3_bucket_website_configuration.dashboard_website.website_endpoint
 }
 
+
+#########################################
+# Output API Endpoint
+#########################################
+
+output "asg_api_url" {
+  description = "URL of the Auto Scaling logs API"
+  value       = aws_apigatewayv2_api.asg_api.api_endpoint
+}

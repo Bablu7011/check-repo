@@ -168,11 +168,4 @@ resource "aws_s3_object" "dashboard_app_js" {
   content_type = "application/javascript"
 }
 
-# Upload style.css
-resource "aws_s3_object" "dashboard_style_css" {
-  bucket       = aws_s3_bucket.autoscaling_dashboard_bucket.id
-  key          = "style.css"
-  source       = "${path.module}/../frontend/style.css"
-  content_type = "text/css"
-}
 
