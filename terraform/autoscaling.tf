@@ -76,43 +76,71 @@ resource "aws_autoscaling_group" "devops_asg" {
 
 
 ###############################################################
-# CloudWatch Alarms for Auto Scaling
+# Auto Scaling Policies + CloudWatch Alarms
 ###############################################################
 
-# High Traffic Alarm (Scale Up)
+# --- SCALE UP POLICY ---
+resource "aws_autoscaling_policy" "scale_up_policy" {
+  name                   = "${var.stage}-scale-up-policy"
+  autoscaling_group_name = aws_autoscaling_group.devops_asg.name
+  adjustment_type        = "ChangeInCapacity"
+  scaling_adjustment     = 1          # add one instance
+  cooldown               = 60         # wait 1 minute before another scale-up
+  policy_type            = "SimpleScaling"
+}
+
+# --- SCALE DOWN POLICY ---
+resource "aws_autoscaling_policy" "scale_down_policy" {
+  name                   = "${var.stage}-scale-down-policy"
+  autoscaling_group_name = aws_autoscaling_group.devops_asg.name
+  adjustment_type        = "ChangeInCapacity"
+  scaling_adjustment     = -1         # remove one instance
+  cooldown               = 300        # wait 5 minutes before another scale-down
+  policy_type            = "SimpleScaling"
+}
+
+# --- HIGH TRAFFIC ALARM (Triggers Scale Up) ---
 resource "aws_cloudwatch_metric_alarm" "high_request_alarm" {
   alarm_name          = "${var.stage}-high-traffic"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1          # Number of evaluation periods
-  period              = 60         # 1 minute
+  evaluation_periods  = 1
+  period              = 60
   metric_name         = "RequestCountPerTarget"
   namespace           = "AWS/ApplicationELB"
   statistic           = "Sum"
   threshold           = 100
-  alarm_description   = "High traffic detected - RequestCountPerTarget > 100 for 1 minute"
+  alarm_description   = "High traffic detected: RequestCountPerTarget > 100 for 1 minute"
+
+  alarm_actions       = [aws_autoscaling_policy.scale_up_policy.arn]
+  ok_actions          = []
+  insufficient_data_actions = []
 
   dimensions = {
-    TargetGroup = aws_lb_target_group.main_tg.name
+    TargetGroup  = aws_lb_target_group.main_tg.name
     LoadBalancer = aws_lb.main_alb.name
   }
 
   treat_missing_data = "notBreaching"
 }
 
-# Low Traffic Alarm (Scale Down)
+# --- LOW TRAFFIC ALARM (Triggers Scale Down) ---
 resource "aws_cloudwatch_metric_alarm" "low_request_alarm" {
   alarm_name          = "${var.stage}-low-traffic"
   comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 1          # Number of evaluation periods
-  period              = 300        # 5 minutes
+  evaluation_periods  = 1
+  period              = 300
   metric_name         = "RequestCountPerTarget"
   namespace           = "AWS/ApplicationELB"
   statistic           = "Sum"
-  threshold           = 90
-  alarm_description   = "Low traffic detected - RequestCountPerTarget < 90 for 5 minutes"
+  threshold           = 100
+  alarm_description   = "Low traffic detected: RequestCountPerTarget < 100 for 5 minutes"
+
+  alarm_actions       = [aws_autoscaling_policy.scale_down_policy.arn]
+  ok_actions          = []
+  insufficient_data_actions = []
 
   dimensions = {
-    TargetGroup = aws_lb_target_group.main_tg.name
+    TargetGroup  = aws_lb_target_group.main_tg.name
     LoadBalancer = aws_lb.main_alb.name
   }
 
