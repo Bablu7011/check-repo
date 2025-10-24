@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Auto Scaling Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Auto Scaling Activity Dashboard</h1>
+    <button id="refresh-btn" onclick="refreshData()">🔄 Refresh Data</button>
+    <p id="status">Click “Refresh Data” to view scaling activities.</p>
+
+    <table id="data-table" style="display:none;">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Description</th>
+          <th>Cause</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
