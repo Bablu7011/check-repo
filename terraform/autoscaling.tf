@@ -75,26 +75,46 @@ resource "aws_autoscaling_group" "devops_asg" {
 }
 
 
+###############################################################
+# CloudWatch Alarms for Auto Scaling
+###############################################################
 
-# --------------------------
-# Auto Scaling Policy (FINAL FIXED)
-# --------------------------
-resource "aws_autoscaling_policy" "devops_asg_policy" {
-  name                   = "${var.stage}-alb-requests-policy"
-  autoscaling_group_name = aws_autoscaling_group.devops_asg.name
-  policy_type            = "TargetTrackingScaling"
+# High Traffic Alarm (Scale Up)
+resource "aws_cloudwatch_metric_alarm" "high_request_alarm" {
+  alarm_name          = "${var.stage}-high-traffic"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1          # Number of evaluation periods
+  period              = 60         # 1 minute
+  metric_name         = "RequestCountPerTarget"
+  namespace           = "AWS/ApplicationELB"
+  statistic           = "Sum"
+  threshold           = 100
+  alarm_description   = "High traffic detected - RequestCountPerTarget > 100 for 1 minute"
 
-  # ✅ Estimated warmup time (top-level, not inside nested block)
-  estimated_instance_warmup = 300 # 5 minutes instead of AWS default 15+
-
-  target_tracking_configuration {
-    # Target number of requests per target
-    target_value = 100 # (Approx 20 requests/sec over 5 min)
-
-    # Tell AWS which metric to monitor
-    predefined_metric_specification {
-      predefined_metric_type = "ALBRequestCountPerTarget"
-      resource_label         = "${aws_lb.main_alb.arn_suffix}/${aws_lb_target_group.main_tg.arn_suffix}"
-    }
+  dimensions = {
+    TargetGroup = aws_lb_target_group.main_tg.name
+    LoadBalancer = aws_lb.main_alb.name
   }
+
+  treat_missing_data = "notBreaching"
+}
+
+# Low Traffic Alarm (Scale Down)
+resource "aws_cloudwatch_metric_alarm" "low_request_alarm" {
+  alarm_name          = "${var.stage}-low-traffic"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1          # Number of evaluation periods
+  period              = 300        # 5 minutes
+  metric_name         = "RequestCountPerTarget"
+  namespace           = "AWS/ApplicationELB"
+  statistic           = "Sum"
+  threshold           = 90
+  alarm_description   = "Low traffic detected - RequestCountPerTarget < 90 for 5 minutes"
+
+  dimensions = {
+    TargetGroup = aws_lb_target_group.main_tg.name
+    LoadBalancer = aws_lb.main_alb.name
+  }
+
+  treat_missing_data = "notBreaching"
 }
