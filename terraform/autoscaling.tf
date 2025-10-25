@@ -59,7 +59,7 @@ resource "aws_autoscaling_group" "devops_asg" {
   # This tells the ASG to use the LB's health check
   # It gives the instance time to start the python server
   health_check_type         = "ELB"
-  health_check_grace_period = 300 # 5 minutes
+  health_check_grace_period = 180 # 3 minutes
 
   lifecycle {
     create_before_destroy = true
@@ -72,71 +72,39 @@ resource "aws_autoscaling_group" "devops_asg" {
     value               = "${var.stage}-asg-instance"
     propagate_at_launch = true
   }
+  enabled_metrics = [
+    "GroupDesiredCapacity",
+    "GroupInServiceInstances",
+    "GroupPendingInstances",
+    "GroupTerminatingInstances",
+    "GroupTotalInstances"
+  ]
+
+  metrics_granularity = "1Minute"
 }
 
 
-################################################################
-# FAST Auto Scaling Policies + CloudWatch Alarms
-###############################################################
 
-# --- SCALE UP POLICY ---
-resource "aws_autoscaling_policy" "scale_up_policy" {
-  name                   = "${var.stage}-scale-up-policy"
+
+
+
+
+
+resource "aws_autoscaling_policy" "devops_asg_policy" {
+  name                   = "${var.stage}-alb-requests-policy"
   autoscaling_group_name = aws_autoscaling_group.devops_asg.name
-  adjustment_type        = "ChangeInCapacity"
-  scaling_adjustment     = 1          # add one instance
-  cooldown               = 60         # wait 1 minute before another scale-up
-  policy_type            = "SimpleScaling"
-}
+  policy_type            = "TargetTrackingScaling"
 
-# --- SCALE DOWN POLICY ---
-resource "aws_autoscaling_policy" "scale_down_policy" {
-  name                   = "${var.stage}-scale-down-policy"
-  autoscaling_group_name = aws_autoscaling_group.devops_asg.name
-  adjustment_type        = "ChangeInCapacity"
-  scaling_adjustment     = -1         # remove one instance
-  cooldown               = 300        # wait 5 minutes before another scale-down
-  policy_type            = "SimpleScaling"
-}
+  target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ALBRequestCountPerTarget"
+      # AWS needs this exact label: ALB_ARN_SUFFIX/TG_ARN_SUFFIX
+      resource_label = "${aws_lb.main_alb.arn_suffix}/${aws_lb_target_group.main_tg.arn_suffix}"
+    }
 
-# --- HIGH TRAFFIC ALARM (Triggers Scale Up) ---
-resource "aws_cloudwatch_metric_alarm" "high_request_alarm" {
-  alarm_name          = "${var.stage}-high-traffic"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  period              = 60 # 1 minute
-  metric_name         = "RequestCountPerTarget"
-  namespace           = "AWS/ApplicationELB"
-  statistic           = "Sum"
-  threshold           = 100
-  alarm_description   = "Scale up: RequestCountPerTarget > 100 for 1 minute"
-  alarm_actions       = [aws_autoscaling_policy.scale_up_policy.arn]
-
-  dimensions = {
-    LoadBalancer = aws_lb.main_alb.name
-    TargetGroup  = aws_lb_target_group.main_tg.name
+    # Target request count per target
+    target_value = 100
   }
 
-  treat_missing_data = "notBreaching"
-}
-
-# --- LOW TRAFFIC ALARM (Triggers Scale Down) ---
-resource "aws_cloudwatch_metric_alarm" "low_request_alarm" {
-  alarm_name          = "${var.stage}-low-traffic"
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 1
-  period              = 300 # 5 minutes
-  metric_name         = "RequestCountPerTarget"
-  namespace           = "AWS/ApplicationELB"
-  statistic           = "Sum"
-  threshold           = 100
-  alarm_description   = "Scale down: RequestCountPerTarget < 100 for 5 minutes"
-  alarm_actions       = [aws_autoscaling_policy.scale_down_policy.arn]
-
-  dimensions = {
-    LoadBalancer = aws_lb.main_alb.name
-    TargetGroup  = aws_lb_target_group.main_tg.name
-  }
-
-  treat_missing_data = "notBreaching"
+  estimated_instance_warmup = 120 # faster cooldown (default = 300)
 }

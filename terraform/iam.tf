@@ -49,8 +49,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_s3_access_role.name
 }
 
-# --- Data Source to get current AWS Account ID ---
-data "aws_caller_identity" "current" {}
+
 
 # --- Policy for the Auditor to read all S3 Buckets ---
 resource "aws_iam_policy" "auditor_read_buckets_policy" {

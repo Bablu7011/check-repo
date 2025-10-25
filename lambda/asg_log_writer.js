@@ -1,25 +1,67 @@
-const AWS = require("aws-sdk");
-const cloudwatchlogs = new AWS.CloudWatchLogs();
+// Import specific CloudWatch Logs client + commands from AWS SDK v3
+import {
+  CloudWatchLogsClient,
+  CreateLogGroupCommand,
+  CreateLogStreamCommand,
+  DescribeLogStreamsCommand,
+  PutLogEventsCommand
+} from "@aws-sdk/client-cloudwatch-logs";
 
-exports.handler = async (event) => {
+// Create a single CloudWatch Logs client instance
+const cloudwatchlogs = new CloudWatchLogsClient({ region: process.env.AWS_REGION });
+
+export const handler = async (event) => {
   const logGroupName = process.env.LOG_GROUP;
   const logStreamName = new Date().toISOString().split("T")[0]; // daily log stream
   const message = JSON.stringify(event, null, 2);
 
   try {
-    // Ensure log group exists
-    await cloudwatchlogs.createLogGroup({ logGroupName }).promise().catch(() => {});
-    await cloudwatchlogs.createLogStream({ logGroupName, logStreamName }).promise().catch(() => {});
+    // Create log group (ignore if exists)
+    try {
+      await cloudwatchlogs.send(new CreateLogGroupCommand({ logGroupName }));
+    } catch (e) {
+      if (e.name !== "ResourceAlreadyExistsException") console.error(e);
+    }
 
-    await cloudwatchlogs.putLogEvents({
-      logGroupName,
-      logStreamName,
-      logEvents: [
-        { message, timestamp: Date.now() }
-      ]
-    }).promise();
+    // Create log stream (ignore if exists)
+    try {
+      await cloudwatchlogs.send(new CreateLogStreamCommand({ logGroupName, logStreamName }));
+    } catch (e) {
+      if (e.name !== "ResourceAlreadyExistsException") console.error(e);
+    }
 
-    console.log("✅ ASG event logged successfully");
+    // Get sequence token if log stream already exists
+    let uploadSequenceToken;
+    try {
+      const streams = await cloudwatchlogs.send(
+        new DescribeLogStreamsCommand({
+          logGroupName,
+          logStreamNamePrefix: logStreamName,
+        })
+      );
+      if (streams.logStreams && streams.logStreams.length > 0) {
+        uploadSequenceToken = streams.logStreams[0].uploadSequenceToken;
+      }
+    } catch (e) {
+      console.error("⚠️ Error describing log streams:", e);
+    }
+
+    // Put log event into the log stream
+    await cloudwatchlogs.send(
+      new PutLogEventsCommand({
+        logGroupName,
+        logStreamName,
+        logEvents: [
+          {
+            message: `🪶 Auto Scaling Event Logged:\n${message}`,
+            timestamp: Date.now(),
+          },
+        ],
+        sequenceToken: uploadSequenceToken,
+      })
+    );
+
+    console.log("✅ ASG event logged successfully!");
   } catch (err) {
     console.error("❌ Error writing to CloudWatch Logs:", err);
   }

@@ -23,6 +23,8 @@ resource "aws_autoscaling_notification" "asg_notification" {
   ]
 
   topic_arn = aws_sns_topic.asg_notifications.arn
+
+  depends_on = [aws_autoscaling_group.devops_asg]
 }
 
 # -------------------------------------------
@@ -55,7 +57,8 @@ resource "aws_iam_role_policy" "asg_logger_policy" {
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
-          "logs:PutLogEvents"
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
         ],
         Resource = "*"
       }
@@ -69,9 +72,9 @@ resource "aws_iam_role_policy" "asg_logger_policy" {
 resource "aws_lambda_function" "asg_to_cloudwatch_logger" {
   function_name = "${var.stage}-asg-log-writer"
   role          = aws_iam_role.asg_logger_role.arn
-  runtime       = "nodejs18.x"
-  handler       = "index.handler"
-  filename      = "${path.module}/../lambda/asg_log_writer.zip"
+  runtime = "nodejs18.x"
+  handler = "asg_log_writer.handler"
+  filename = "${path.module}/../lambda/asg_log_writer.zip"
 
   environment {
     variables = {

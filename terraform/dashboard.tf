@@ -1,46 +1,114 @@
-resource "aws_cloudwatch_dashboard" "scaling_activity_dashboard" {
-  dashboard_name = "${var.stage}-scaling-dashboard"
+###############################################################
+# CloudWatch Dashboard for Auto Scaling Activity
+###############################################################
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_cloudwatch_dashboard" "asg_dashboard" {
+  dashboard_name = "${var.stage}-asg-dashboard"
 
   dashboard_body = jsonencode({
     widgets = [
-      # --------------------------------------------------------
-      # 1. EC2 Instance Scaling Activity Chart
-      # --------------------------------------------------------
+      # Title / Summary
       {
-        "type" : "metric",
-        "x" : 0,
-        "y" : 0,
-        "width" : 24,
-        "height" : 8,
-        "properties" : {
-          "metrics" : [
-            ["AWS/AutoScaling", "GroupDesiredCapacity", "AutoScalingGroupName", aws_autoscaling_group.devops_asg.name, { "label" : "Desired Capacity", "color" : "#1f77b4" }],
-            [".", "GroupInServiceInstances", ".", ".", { "label" : "In Service Instances", "color" : "#2ca02c" }]
-          ],
-          "view" : "timeSeries",
-          "stacked" : false,
-          "region" : "ap-south-1",
-          "title" : "EC2 Scaling Activity (Desired vs In-Service Instances)",
-          "period" : 300,
-          "yAxis" : {
-            "left" : { "label" : "Number of Instances", "min" : 0 }
-          }
+        type   = "text"
+        x      = 0
+        y      = 0
+        width  = 24
+        height = 4
+        properties = {
+          markdown = "🚀 **${var.stage} Auto Scaling Dashboard**\n\n**Region:** ap-south-1\n**Account:** ${data.aws_caller_identity.current.account_id}\n\n**Metrics Displayed:**\n- EC2 Instances (Desired, InService)\n- CPU Utilization\n- ALB Requests per Target\n- Scaling Behavior\n\n_Last Updated: ${timestamp()}_"
         }
       },
 
-      # --------------------------------------------------------
-      # 2. Scaling Summary (Markdown text)
-      # --------------------------------------------------------
+      # Desired vs InService Instances
       {
-        "type" : "text",
-        "x" : 0,
-        "y" : 8,
-        "width" : 24,
-        "height" : 3,
-        "properties" : {
-          "markdown" : "### 🟢 Auto Scaling Summary\n\n- **Tracks EC2 instance scale-up and scale-down events** for the Auto Scaling Group `${aws_autoscaling_group.devops_asg.name}`.\n- View the chart above to see when the ASG increased or decreased capacity.\n- Select **1h, 3h, or 1d** at the top to see scaling history over time.\n\n_Updated automatically via Terraform._"
+        type   = "metric"
+        x      = 0
+        y      = 5
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/AutoScaling", "GroupDesiredCapacity", "AutoScalingGroupName", aws_autoscaling_group.devops_asg.name],
+            ["AWS/AutoScaling", "GroupInServiceInstances", "AutoScalingGroupName", aws_autoscaling_group.devops_asg.name]
+          ]
+          period = 60
+          stat   = "Average"
+          region = "ap-south-1"
+          title  = "🧩 Auto Scaling - Desired vs InService Instances"
+        }
+      },
+
+      # ALB Requests per Target
+      {
+        type   = "metric"
+        x      = 12
+        y      = 5
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            [
+              "AWS/ApplicationELB",
+              "RequestCountPerTarget",
+              "TargetGroup",
+              aws_lb_target_group.main_tg.name,
+              "LoadBalancer",
+              aws_lb.main_alb.name
+            ]
+          ]
+          view   = "timeSeries"
+          region = "ap-south-1"
+          stat   = "Sum"
+          period = 60
+          title  = "🌐 ALB Request Count per Target"
+          yAxis = {
+            left = {
+              label = "Requests per Target"
+            }
+          }
+        }
+      }
+      ,
+
+      # CPU Utilization
+      {
+        type   = "metric"
+        x      = 0
+        y      = 11
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/EC2", "CPUUtilization", "AutoScalingGroupName", aws_autoscaling_group.devops_asg.name]
+          ]
+          period = 60
+          stat   = "Average"
+          region = "ap-south-1"
+          title  = "⚙️ EC2 CPU Utilization (per ASG)"
+        }
+      },
+
+      # Scaling Behavior (Capacity History)
+      {
+        type   = "metric"
+        x      = 12
+        y      = 11
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/AutoScaling", "GroupDesiredCapacity", "AutoScalingGroupName", aws_autoscaling_group.devops_asg.name],
+            ["AWS/AutoScaling", "GroupInServiceInstances", "AutoScalingGroupName", aws_autoscaling_group.devops_asg.name]
+          ]
+          period = 60
+          stat   = "Average"
+          region = "ap-south-1"
+          title  = "🔔 Scaling Events (Capacity Changes)"
         }
       }
     ]
   })
 }
+
