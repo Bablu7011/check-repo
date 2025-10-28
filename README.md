@@ -135,7 +135,7 @@ The system now supports a configurable number of EC2 instances (1 + n), automati
 
 📂 Three Distinct S3 Buckets:
 
-JAR Bucket: Stores the compiled Java application (.jar file). EC2 instances watch this bucket for updates.
+JAR Bucket: Stores the compiled Java application (.jar file). EC2 instances watch this bucket for updates.h
 
 EC2 Logs Bucket: Collects logs from each individual EC2 instance in folders named by instance ID.
 

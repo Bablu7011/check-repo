@@ -40,37 +40,7 @@ resource "aws_cloudwatch_dashboard" "asg_dashboard" {
         }
       },
 
-      # ALB Requests per Target
-      {
-        type   = "metric"
-        x      = 12
-        y      = 5
-        width  = 12
-        height = 6
-        properties = {
-          metrics = [
-            [
-              "AWS/ApplicationELB",
-              "RequestCountPerTarget",
-              "TargetGroup",
-              aws_lb_target_group.main_tg.name,
-              "LoadBalancer",
-              aws_lb.main_alb.name
-            ]
-          ]
-          view   = "timeSeries"
-          region = "ap-south-1"
-          stat   = "Sum"
-          period = 60
-          title  = "🌐 ALB Request Count per Target"
-          yAxis = {
-            left = {
-              label = "Requests per Target"
-            }
-          }
-        }
-      }
-      ,
+
 
       # CPU Utilization
       {
